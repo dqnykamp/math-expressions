@@ -8,8 +8,8 @@
     "url": "http://kisonecat.com/"
   },
   "scripts": {
-    "test": "jasmine",
-    "install": "jison lib/text.jison -o lib/lexers/text.js && jison lib/latex.jison -o lib/lexers/latex.js && sed -i /\\'fs\\'/d lib/lexers/latex.js && sed -i /\\'fs\\'/d lib/lexers/text.js",
+    "test": "node --experimental-modules node_modules/jasmine/bin/jasmine.js",
+    "install": "jison lib/converters/text.jison -o lib/converters/lexers/text.js && jison lib/converters/latex.jison -o lib/converters/lexers/latex.js && sed -i /\\'fs\\'/d lib/converters/lexers/latex.js && sed -i /\\'fs\\'/d lib/converters/lexers/text.js",
     "lint": "jshint lib/*.js spec/*.js"
   },
   "repository": {
