@@ -673,11 +673,23 @@ const objectsToTest = [
     'ast': ['^', -3, 'x'],
     'text': '(-3)^x',
   },
+  {
+    'string': '\uff3f',
+    'ast': Symbol('\uff3f'),
+    'text': '\uff3f',
+  },
+  {
+    'string': '*, 2, \uff3f',
+    'ast': ['*', 2, Symbol('\uff3f')],
+    'text': '2 \uff3f',
+  },
+
 ]
 
 
 for (let objectToTest of objectsToTest) {
-  test("parses " + objectToTest.ast + ' to ' + objectToTest.text, () => {
+  let objName = objectToTest.string ? objectToTest.string : objectToTest.ast;
+  test("parses " + objName + ' to ' + objectToTest.text, () => {
     expect(converter.convert(objectToTest.ast)).toEqual(objectToTest.text);
   });
 

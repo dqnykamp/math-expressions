@@ -322,6 +322,11 @@ describe("expression", function () {
     });
   });
 
+  it(`symbols don't match`, function () {
+    expect(Expression.fromAst(Symbol('\uff3f')).equals(Expression.fromAst(Symbol('\uff3f')))).toBeFalsy();
+    expect(Expression.fromAst(['*', 2, Symbol('\uff3f')]).equals(Expression.fromAst(['*', 2, Symbol('\uff3f')]))).toBeFalsy();
+  })
+
 
   it('integer assumption', function () {
     Expression.set_to_default();

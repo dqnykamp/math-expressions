@@ -561,7 +561,7 @@ const objectsToTest = [
     'latex': ''
   },
   {
-    'ast':  ['matrix', ['tuple', 2, 2], ['tuple', ['tuple', 'a', 'b'], ['tuple', 'c', 'd']]],
+    'ast': ['matrix', ['tuple', 2, 2], ['tuple', ['tuple', 'a', 'b'], ['tuple', 'c', 'd']]],
     'latex': '\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}'
   },
   {
@@ -613,15 +613,15 @@ const objectsToTest = [
     'latex': '\\frac{ \\partial^{3}x }{ \\partial s^{2} \\partial t }',
   },
   {
-    'ast': ["*","a",["apply","abs","x"]],
+    'ast': ["*", "a", ["apply", "abs", "x"]],
     'latex': 'a \\, \\left|x\\right|',
   },
   {
-    'ast': ["*",["apply","abs","a"],"b",["apply","abs","c"]],
+    'ast': ["*", ["apply", "abs", "a"], "b", ["apply", "abs", "c"]],
     'latex': '\\left|a\\right| \\, b \\, \\left|c\\right|',
   },
   {
-    'ast': ["apply","abs",["*","a",["apply","abs","b"],"c"]],
+    'ast': ["apply", "abs", ["*", "a", ["apply", "abs", "b"], "c"]],
     'latex': '\\left|a \\, \\left|b\\right| \\, c\\right|',
   },
   {
@@ -676,13 +676,23 @@ const objectsToTest = [
     'ast': ['^', -3, 'x'],
     'latex': '\\left(-3\\right)^{x}',
   },
-
+  {
+    'string': '\uff3f',
+    'ast': Symbol('\uff3f'),
+    'latex': '\uff3f',
+  },
+  {
+    'string': '*, 2, \uff3f',
+    'ast': ['*', 2, Symbol('\uff3f')],
+    'latex': '2 \\, \uff3f',
+  },
 
 ]
 
 
 for (let objectToTest of objectsToTest) {
-  test("parses " + objectToTest.ast + ' to ' + objectToTest.latex, () => {
+  let objName = objectToTest.string ? objectToTest.string : objectToTest.ast;
+  test("parses " + objName + ' to ' + objectToTest.latex, () => {
     expect(converter.convert(objectToTest.ast)).toEqual(objectToTest.latex);
   });
 
@@ -691,7 +701,7 @@ for (let objectToTest of objectsToTest) {
 
 test("matrix environment", function () {
 
-  let converter = new astToLatex({matrixEnvironment: "pmatrix" });
+  let converter = new astToLatex({ matrixEnvironment: "pmatrix" });
 
   expect(converter.convert(['matrix', ['tuple', 2, 2], ['tuple', ['tuple', 'a', 'b'], ['tuple', 'c', 'd']]])).toEqual('\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}');
 
