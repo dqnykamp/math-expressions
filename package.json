@@ -14,6 +14,7 @@
     "test:watch": "jest --watch",
     "test": "jest quick_",
     "test:all": "jest",
+    "test:bench": "jest spec/bench_expand.spec.js",
     "lint": "jshint lib/*.js spec/*.js",
     "prettier:format": "prettier --write .",
     "prettier:check": "prettier --check .",
