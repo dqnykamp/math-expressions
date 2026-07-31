@@ -67,7 +67,7 @@ impl Expression {
     /// (e.g. `["+", 1, "x", 3]`), so it lines up with the JS library's
     /// `expr.tree`. Intended for inspection/tooling (§13 `to_json`).
     pub fn tree_json(&self) -> String {
-        math_expressions::js_tree::to_js(&self.0).to_string()
+        math_expressions::expr::serde::to_js(&self.0).to_string()
     }
 
     /// Mathematical equality with another expression.
@@ -75,14 +75,21 @@ impl Expression {
         rust_equals(&self.0, &other.0, &EqOptions::default())
     }
 
-    /// Canonical simplification.
+    /// Canonical simplification — the *aggressive* simplifier
+    /// (FULL_SIMPLIFY_PLAN), which goes beyond the JS `.simplify()`: on top of
+    /// the canonical reductions it folds `exp(ln x) → x`, the trig/exp/log
+    /// special values (`cos(π/3) → 1/2`), and rational cancellation, iterated
+    /// to a fixpoint. Always value-equal to the input, so the result may be a
+    /// different (smaller) tree than the JS library returns.
     pub fn simplify(&self) -> Expression {
         self.derive(rust_simplify(&self.0))
     }
 
     /// Simplify under the given `assumptions` — each a relation in text syntax
     /// (e.g. `"x > 0"`, `"n elementof Z"`). Assumptions that fail to parse are
-    /// ignored. With an empty list this equals [`Self::simplify`].
+    /// ignored. This runs the same aggressive pipeline as [`Self::simplify`]
+    /// plus the assumption-aware rules, so with an empty list it is exactly
+    /// [`Self::simplify`].
     pub fn simplify_with_assumptions(&self, assumptions: Vec<String>) -> Expression {
         let mut a = Assumptions::new();
         // Assumption strings are parsed in THIS expression's notation — under
@@ -255,7 +262,7 @@ impl Expression {
     #[wasm_bindgen(js_name = "mod")]
     pub fn modulo(&self, other: &Expression) -> Expression {
         self.derive(Expr::OtherOp(
-            math_expressions::sym::Sym::new("mod"),
+            math_expressions::expr::sym::Sym::new("mod"),
             vec![self.0.clone(), other.0.clone()],
         ))
     }

@@ -25,7 +25,7 @@
 use crate::expr::{Expr, MathConst, SeqKind};
 // Canonical-shape variants: this module pattern-matches `Expr::Num` etc. on
 // the results, so it must not receive the display (`present`) form.
-use crate::norm::{expand_core, simplify_core};
+use crate::normalize::{expand_core, simplify_core};
 use crate::num::Number;
 
 use super::EqOptions;
@@ -340,7 +340,7 @@ pub fn create_discrete_infinite_set(
         .collect();
 
     Some(Expr::OtherOp(
-        crate::sym::Sym::new("discrete_infinite_set"),
+        crate::expr::sym::Sym::new("discrete_infinite_set"),
         tuples,
     ))
 }

@@ -396,11 +396,17 @@ export const REGISTRY: OpEntry[] = [
           ),
         ),
     },
-    null,
     {
-      unsupportedReason: {
-        rust: "the Rust port exposes integrate_to_precision, not a bare numeric integral",
-      },
+      // Certified quadrature reduced to an f64 (null = couldn't certify).
+      call: "integrate_numerically(v, a, b) — certified",
+      run: (h, a) =>
+        num(
+          h.integrate_numerically(
+            needStr(a[0], "variable"),
+            needNum(a[1], "lower"),
+            needNum(a[2], "upper"),
+          ) ?? null,
+        ),
     },
   ),
 
@@ -620,6 +626,9 @@ export const CURATED_RUST_METHODS: ReadonlySet<string> = new Set([
   "normalize_function_names",
   "derivative",
   "integrate",
+  // Dispatched by the curated `integrateNumerically` op, whose chain id is the
+  // camelCase JS spelling — so it has to be listed here by its Rust name.
+  "integrate_numerically",
   "variables",
   "functions",
   "equals",

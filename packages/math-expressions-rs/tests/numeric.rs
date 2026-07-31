@@ -1,8 +1,8 @@
-//! f64 numeric module (`me.math` replacements) — hand-checkable cases.
+//! f64 mathjs_compat module (`me.math` replacements) — hand-checkable cases.
 //! Differential coverage against the JS mathjs oracle lives in
 //! `numeric_corpus.rs`.
 
-use math_expressions::numeric::*;
+use math_expressions::mathjs_compat::*;
 
 fn assert_close(a: f64, b: f64, tol: f64) {
     assert!((a - b).abs() <= tol, "expected {b}, got {a}");
@@ -93,7 +93,7 @@ fn eigs_companion_and_defective() {
     assert_close(pairs[1].value.re, 1.0, 1e-7);
 }
 
-fn check_residual(a: &[f64], n: usize, p: &EigenPair) {
+fn check_residual(a: &[f64], n: usize, p: &NumericEigenPair) {
     let mut max = 0.0f64;
     for i in 0..n {
         let mut av = num_complex::Complex64::new(0.0, 0.0);
@@ -105,45 +105,4 @@ fn check_residual(a: &[f64], n: usize, p: &EigenPair) {
     assert!(max < 1e-8, "eigen residual {max} too large");
     let mag: f64 = p.vector.iter().map(|v| v.norm_sqr()).sum::<f64>().sqrt();
     assert_close(mag, 1.0, 1e-9);
-}
-
-#[test]
-fn match_template_default_mode() {
-    use math_expressions::js_match::match_template;
-    use serde_json::json;
-
-    // ["+", ["*", 2, "x"], 3] against ["+", ["*", "a", "x"], "b"]:
-    // wildcards a, x, b (all pattern variables).
-    let tree = json!(["+", ["*", 2, "x"], 3]);
-    let pat = json!(["+", ["*", "a", "y"], "b"]);
-    let m = match_template(&tree, &pat).unwrap();
-    assert_eq!(m.get("a").unwrap(), &json!(2));
-    assert_eq!(m.get("y").unwrap(), &json!("x"));
-    assert_eq!(m.get("b").unwrap(), &json!(3));
-
-    // Grouping: last wildcard absorbs the rest of an associative operator.
-    let tree = json!(["+", 1, 2, 3]);
-    let m = match_template(&tree, &json!(["+", "u", "v"])).unwrap();
-    assert_eq!(m.get("u").unwrap(), &json!(1));
-    assert_eq!(m.get("v").unwrap(), &json!(["+", 2, 3]));
-
-    // Repeated wildcard must bind equal subtrees.
-    assert!(match_template(&json!(["+", "x", "x"]), &json!(["+", "u", "u"])).is_some());
-    assert!(match_template(&json!(["+", "x", "y"]), &json!(["+", "u", "u"])).is_none());
-
-    // Unary minus of product matches a * pattern.
-    let tree = json!(["-", ["*", "x", "y"]]);
-    let m = match_template(&tree, &json!(["*", "a", "b"])).unwrap();
-    assert_eq!(m.get("a").unwrap(), &json!(["-", "x"]));
-    assert_eq!(m.get("b").unwrap(), &json!("y"));
-
-    // Operators must match exactly; no match across operators.
-    assert!(match_template(&json!(["*", 1, 2]), &json!(["+", "u", "v"])).is_none());
-    // Exact variable-free match -> empty bindings.
-    assert_eq!(
-        match_template(&json!(["+", 1, 2]), &json!(["+", 1, 2]))
-            .unwrap()
-            .len(),
-        0
-    );
 }

@@ -1,9 +1,14 @@
 # Symbolic Integration Plan
 
-> **PROGRESS (audited 2026-07-20):** PARTIAL — I1–I2 shipped (indefinite
-> integration, differentiation-gated; wasm `integrate`). I3–I5 open
-> (`WHATS_LEFT.md` §B.2, items 27–29): by-parts/trig clusters/√-substitutions,
-> hypergeometric terminal node, `integrate_with_story` + presentation polish.
+> **PROGRESS (audited 2026-07-28):** PARTIAL — I1–I2 shipped (indefinite
+> integration, differentiation-gated; wasm `integrate`). The engine now lives
+> in `src/calculus/integrate/` (a `mod.rs` pipeline driver over the
+> `rational` / `table` / `usub` stages). Added 2026-07-28: integer powers of
+> `sin`/`cos` with a linear argument, via the power-reduction recursion, and a
+> retry of the whole pipeline on the *simplified* integrand when the raw form
+> fails (so `∫ sin²x + cos²x dx` succeeds). I3–I5 open (`WHATS_LEFT.md` §B.2,
+> items 27–29): by-parts/trig clusters/√-substitutions, hypergeometric terminal
+> node, `integrate_with_story` + presentation polish.
 
 Design for symbolic (indefinite) integration in `math-expressions-rs`, based
 on an investigation of the Rubi rule-based integrator as foundation, with
@@ -14,9 +19,11 @@ non-elementary antiderivatives. Companion documents: `active-plans/DONE_MATRIX_P
 there, §5; numeric self-verification uses its quadrature hooks).
 
 **This is new capability, not porting.** The JS library has no symbolic
-integration (only `integrateNumerically`, itself unported — PORTING_PLAN
-§17). Everything here is beyond-JS, consistent with the divergence pattern
-already established (assumptions-driven `abs`, matrices, precision).
+integration — only `integrateNumerically`, which is now covered by the
+certified quadrature (`Expression::integrate_numerically`, 2026-07-28; see
+`NUMERIC_INTEGRATION_F64_PLAN.md`). Everything here is beyond-JS, consistent
+with the divergence pattern already established (assumptions-driven `abs`,
+matrices, precision).
 
 ---
 
@@ -66,7 +73,7 @@ corpus-hardened).
 ## 2. Architecture
 
 ```
-integrate(f, x, assumptions) -> Option<Expr>       (src/integrate/)
+integrate(f, x, assumptions) -> Option<Expr>       (src/calculus/integrate/)
   │  canonical f
   ├─ 1. table/linearity pass: Σ cᵢ·fᵢ integrates termwise; constants slide out
   ├─ 2. RATIONAL ENGINE (complete): f ∈ ℚ(vars)(x) → Hermite + LRT   (§3)
@@ -234,12 +241,12 @@ the standing no-OOM-repro policy.
 
 ## 8. Phasing
 
-> **Status: I1 + I2 ✓ done 2026-07-19** (`src/integrate/`,
+> **Status: I1 + I2 ✓ done 2026-07-19** (`src/calculus/integrate/`,
 > `tests/integrate.rs`, 14 tests; full suite 310 tests / 38 binaries; wasm
 > smoke 51/51 incl. `integrate()` and the certified
 > `integrate_to_precision()`).
 >
-> **I1 — the rational engine** (`integrate/rational.rs`), complete over
+> **I1 — the rational engine** (`calculus/integrate/rational.rs`), complete over
 > ℚ(x) under `max_lrt_degree`:
 > - canonical-tree → p/q extraction with fold-time gcd cancellation;
 > - polynomial part by division; the rational part via
@@ -264,7 +271,7 @@ the standing no-OOM-repro policy.
 > - Exit criteria met: the seeded completeness property (25 random proper
 >   rational functions, never `None`, every result gate-verified) is green.
 >
-> **I2 — matcher + rules** (`integrate/mod.rs`): linearity + x-free
+> **I2 — matcher + rules** (`calculus/integrate/mod.rs`): linearity + x-free
 > coefficient slide; the elementary table (power rule incl. rational
 > exponents, 1/u → ln u, aᵘ/eᵘ, ln/log10, sin/cos/tan/cot, sec²/csc² in
 > their canonical `cos(u)⁻²` clothing, sinh/cosh/tanh, sqrt,
@@ -286,7 +293,7 @@ the standing no-OOM-repro policy.
 > cluster-coverage metric — wiring the corpus stays on the I3 docket.
 > `+ C` remains the caller's concern. Definite integrals are served
 > numerically by the certified quadrature
-> (`precise/quad.rs::integrate_to_precision`, see
+> (`eval_numeric/certified_digits/quad.rs::integrate_to_precision`, see
 > ARBITRARY_PERCISION_PLAN post-plan additions) pending the §10 Q2
 > branch-cut design note.
 

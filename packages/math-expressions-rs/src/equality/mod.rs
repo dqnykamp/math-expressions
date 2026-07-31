@@ -2,8 +2,8 @@
 //! expressions denote the same mathematical object? This is the value axis —
 //! contrast [`equality_structural`](crate::equality_structural), which asks
 //! whether an answer is in a required *form* (factored, reduced, …), and
-//! [`precise`](crate::precise), which is certified arbitrary-precision numeric
-//! evaluation.
+//! [`certified_digits`](crate::eval_numeric::certified_digits), which is
+//! certified arbitrary-precision numeric evaluation.
 //!
 //! ## It is a staged decision procedure, not a numerical test
 //!
@@ -12,7 +12,7 @@
 //! Crucially, that final numerical stage is **not certified** — it is a lenient
 //! heuristic made *sound* by the exact stages that run ahead of it (see stage
 //! 7). If you want a guaranteed-accurate-or-`Unknown` number, that is
-//! [`precise`](crate::precise), not this module.
+//! [`certified_digits`](crate::eval_numeric::certified_digits), not this module.
 //!
 //! The stages, in order ([`api::equals`]). Before stage 0, `equals` desugars
 //! scaling units on both sides (`50% → 50/100`, `deg`, `$`) so the stages below
@@ -20,7 +20,7 @@
 //!
 //! 0. **Blank guard** — a missing operand makes equality undefined ⇒ `false`
 //!    (unless `allow_blanks`).
-//! 1. **Exact canonical compare** — [`canonicalize`](crate::norm::canonicalize)
+//! 1. **Exact canonical compare** — [`canonicalize`](crate::normalize::canonicalize)
 //!    both sides and compare trees. Most equal pairs agree here with no
 //!    numerics (the exactness payoff: `10^20+1 ≠ 10^20+2` is decided, not
 //!    sampled).
@@ -49,9 +49,9 @@
 //!    it would otherwise wrongly accept — the soundness comes from the exact
 //!    pre-filter, not from an error bound.
 //!
-//! [`equals_via_real`](api::equals_via_real) is the same procedure restricted
+//! [`equals_via_real`] is the same procedure restricted
 //! to real sample points (JS `equalsViaReal`), and
-//! [`equals_syntactic`](api::equals_syntactic) is the form-level whole-tree
+//! [`equals_syntactic`] is the form-level whole-tree
 //! compare shared with [`equality_structural`](crate::equality_structural).
 //!
 //! ## Layout

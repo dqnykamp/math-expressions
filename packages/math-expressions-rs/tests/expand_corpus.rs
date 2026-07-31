@@ -4,7 +4,9 @@
 //! snapshotted. Regenerate: `node scripts/generate-expand-corpus.mjs`.
 //!   UPDATE_KNOWN_FAILURES=1 cargo test --test expand_corpus
 
-use math_expressions::{equals, expand, js_tree, EqOptions, Expr, TextToAst, TextToAstOptions};
+mod common;
+
+use math_expressions::{equals, expand, expr, EqOptions, Expr, TextToAst, TextToAstOptions};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -13,7 +15,7 @@ fn parse(s: &str) -> Option<Expr> {
 }
 
 fn catch<T>(f: impl FnOnce() -> T) -> Option<T> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).ok()
+    common::caught(f)
 }
 
 #[derive(serde::Deserialize)]
@@ -43,7 +45,7 @@ fn collect_failures() -> BTreeSet<String> {
     for c in &cases {
         let ok = catch(|| {
             let got = expand(&parse(&c.input)?);
-            Some(equals(&got, &js_tree::try_from_js(&c.expanded).expect("fixture tree"), &opts))
+            Some(equals(&got, &expr::serde::try_from_js(&c.expanded).expect("fixture tree"), &opts))
         })
         .flatten()
         .unwrap_or(false);
@@ -56,7 +58,6 @@ fn collect_failures() -> BTreeSet<String> {
 
 #[test]
 fn expand_corpus_no_regressions() {
-    std::panic::set_hook(Box::new(|_| {}));
     let failures = collect_failures();
     if std::env::var("UPDATE_KNOWN_FAILURES").is_ok() {
         let list: Vec<&String> = failures.iter().collect();
@@ -83,7 +84,6 @@ fn expand_corpus_no_regressions() {
 
 #[test]
 fn expand_corpus_pass_rate() {
-    std::panic::set_hook(Box::new(|_| {}));
     let total = corpus().cases.len();
     let failures = collect_failures().len();
     eprintln!(

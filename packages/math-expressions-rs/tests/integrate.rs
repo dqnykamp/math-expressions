@@ -182,6 +182,27 @@ fn sec_squared_shapes() {
 }
 
 #[test]
+fn trig_powers() {
+    // Power-reduction for ∫sinⁿ(u)/∫cosⁿ(u) with a linear argument — previously
+    // "no elementary form found".
+    assert_integrates_to("sin(x)^2", "(x - sin(x)*cos(x))/2");
+    assert_integrates_to("cos(x)^2", "(x + sin(x)*cos(x))/2");
+    assert_integrates_to("sin(x)^3", "cos(x)^3/3 - cos(x)");
+    assert_integrates_to("cos(x)^3", "sin(x) - sin(x)^3/3");
+    // Linear inner argument u = 2x carries the 1/b factor.
+    assert_integrates_to("sin(2x)^2", "x/2 - sin(2x)*cos(2x)/4");
+}
+
+#[test]
+fn simplify_collapsing_integrands() {
+    // Sums that a trig identity collapses to something trivially integrable.
+    // (The pieces also integrate individually now, but this pins the behavior;
+    // the second row is the playground's default equation.)
+    assert_integrates_to("sin(x)^2 + cos(x)^2", "x");
+    assert_integrates_to("sin(x)^2 + cos(x)^2 + 1", "2x");
+}
+
+#[test]
 fn u_substitution() {
     assert_integrates_to("x * exp(x^2)", "exp(x^2)/2");
     assert_integrates_to("2x/(x^2+1)", "ln(x^2+1)");
@@ -189,6 +210,11 @@ fn u_substitution() {
     assert_integrates_to("ln(x)/x", "ln(x)^2/2");
     assert_integrates_to("x/sqrt(1-x^4)", "asin(x^2)/2");
     assert_integrates_to("cos(sqrt(x))/sqrt(x)", "2 sin(sqrt(x))");
+    // A candidate list where an *earlier* candidate leads nowhere: `u = x^2` is
+    // proposed before `u = sin(x^2)`, and integrating in `u` fails for it. The
+    // search must move on to the next candidate rather than abandon the whole
+    // substitution stage.
+    assert_integrates_to("x sin(x^2) cos(x^2)", "-cos(x^2)^2/4");
 }
 
 #[test]
@@ -206,4 +232,41 @@ fn honest_failures_within_fuel() {
             "∫ {f} has no elementary form — must refuse"
         );
     }
+}
+
+/// Every stage the pipeline gained must answer to the declared budgets rather
+/// than to its own recursion: the u-sub search to `max_integration_candidates`,
+/// the whole dispatcher (including the re-entrant u-sub and the simplify-retry)
+/// to `max_integration_steps`. Zero of either must make the search fail
+/// cleanly, not loop or panic.
+#[test]
+fn new_stages_answer_to_the_resource_limits() {
+    use math_expressions::resource_limits::{self, ResourceLimits};
+    let integrates = |f: &str, lim: ResourceLimits| {
+        resource_limits::with(lim, || {
+            integrate(&parse(f), "x", &Assumptions::new()).is_some()
+        })
+    };
+    // u-sub is the only stage that can do `x·sin(x²)·cos(x²)`; with no
+    // candidate slots it has nothing to try.
+    let no_candidates = ResourceLimits {
+        max_integration_candidates: 0,
+        ..Default::default()
+    };
+    assert!(!integrates("x sin(x^2) cos(x^2)", no_candidates));
+    assert!(integrates("x sin(x^2) cos(x^2)", ResourceLimits::default()));
+    // Step fuel gates the dispatcher itself, so even `∫ x dx` refuses at 0.
+    let no_fuel = ResourceLimits {
+        max_integration_steps: 0,
+        ..Default::default()
+    };
+    assert!(!integrates("x", no_fuel));
+    // The simplify-retry re-enters the pipeline with a *fresh* budget: one step
+    // is enough for `sin²x + cos²x + 1`, whose first (unsimplified) attempt
+    // already spent one and failed.
+    let one_step = ResourceLimits {
+        max_integration_steps: 1,
+        ..Default::default()
+    };
+    assert!(integrates("sin(x)^2 + cos(x)^2 + 1", one_step));
 }

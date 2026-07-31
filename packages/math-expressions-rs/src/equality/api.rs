@@ -6,7 +6,7 @@ use super::numeric::equals_numerical;
 use super::relations::{as_comparison, relations_equal};
 use super::{discrete_infinite, finite_field, plus_minus, EqOptions};
 use crate::expr::{Expr, SeqKind};
-use crate::norm::{canonicalize, desugar_units, normalize_syntactic, simplify_canonical};
+use crate::normalize::{canonicalize, desugar_units, normalize_syntactic, simplify_canonical};
 
 /// Are `a` and `b` mathematically equal?
 pub fn equals(a: &Expr, b: &Expr, opts: &EqOptions) -> bool {
@@ -68,7 +68,7 @@ pub fn equals(a: &Expr, b: &Expr, opts: &EqOptions) -> bool {
     // finite-field and single-value sampling stages treat as an opaque atom
     // (and would reject). Dispatch to the pm-aware set comparison before those
     // stages. Port of JS `equality/numerical.js` pm branch + `pm-numerical.js`.
-    if crate::pm::contains_pm(&ca) || crate::pm::contains_pm(&cb) {
+    if crate::ops::pm::contains_pm(&ca) || crate::ops::pm::contains_pm(&cb) {
         return plus_minus::pm_equals(&ca, &cb, opts);
     }
 
@@ -96,6 +96,18 @@ pub fn equals(a: &Expr, b: &Expr, opts: &EqOptions) -> bool {
         return discrete_infinite::equals_discrete_infinite(&ca, &cb, opts);
     }
 
+    // Stage 1c: certified exact equality (accept-only, sound). When the
+    // difference is *provably* zero — surd/π/rational identities the structural
+    // stages miss, e.g. `cos(π/3) − 1/2` or `√8 − 2√2` — confirm it here. This
+    // must run BEFORE the rejection stages below, both of which false-reject
+    // these constants: finite-field evaluates `cos(π/3)` to a meaningless
+    // ℤ/pℤ value, and the numeric sampler is ill-conditioned on transcendental
+    // constants (`cos(π/3) → 0.5000…1 − 0i`). Accept-only ⇒ it can only turn a
+    // false negative into the correct `true`, never a false positive.
+    if certified_equal(&ca, &cb) {
+        return true;
+    }
+
     // Stage 2: finite-field rejection. Exact evaluation in ℤ/pℤ catches
     // additive/structural differences that floating-point sampling can mask
     // (`e^(10x)` vs `e^(10x)+C`), and it is the filter that makes lenient
@@ -108,6 +120,36 @@ pub fn equals(a: &Expr, b: &Expr, opts: &EqOptions) -> bool {
 
     // Stage 3: numerical agreement at random complex points.
     equals_numerical(&ca, &cb, opts)
+}
+
+/// Accept-only exact-equality certificate (stage 1c): is `ca − cb` *provably*
+/// zero? Sampling-free — it evaluates the difference in the certified exact
+/// tower ([`crate::eval_exact::exact_eval`], FULL_SIMPLIFY S1) — so a `true` is
+/// a proof of equality and a `false` is merely "not certified" (fall through to
+/// the rejection stages and sampling). Gated to variable-free operands: the
+/// exact tower decides constants (`cos(π/3)`, surds) cheaply and definitively,
+/// whereas expressions with free variables are the sampler's job and would only
+/// pay `expand`/`ratform` cost here for little gain.
+fn certified_equal(ca: &Expr, cb: &Expr) -> bool {
+    let var_free = |e: &Expr| {
+        crate::ops::variables(e)
+            .iter()
+            .all(|v| crate::expr::sym::is_constant_symbol(v))
+    };
+    if !var_free(ca) || !var_free(cb) {
+        return false;
+    }
+    // Direct exact evaluation of the difference — NOT the full
+    // `eval_exact::certified_zero`, whose `expand`/`ratform` stages target
+    // *variable* rational identities and are wasted on constants (they roughly
+    // doubled the corpus cost). `exact_eval` on the canonical difference decides the
+    // constant tower (ℚ, surds, π, e, trig/exp/log special values) directly;
+    // a value it can't evaluate returns `None` and falls through to sampling.
+    let diff = crate::normalize::canonicalize(&Expr::Add(vec![
+        ca.clone(),
+        Expr::Neg(Box::new(cb.clone())),
+    ]));
+    crate::eval_exact::exact_eval(&diff).is_some_and(|v| v.is_zero())
 }
 
 /// Numerical equality by sampling *real* points only — the port of JS
@@ -181,7 +223,7 @@ fn coerce_seqs(e: Expr, opts: &EqOptions) -> Expr {
             };
             return Expr::Seq(mapped, xs.iter().map(|x| recur(x, opts)).collect());
         }
-        crate::norm::syntactic::map_children(e, |c| recur(c, opts))
+        crate::expr::map_children(e, |c| recur(c, opts))
     }
     recur(&e, opts)
 }

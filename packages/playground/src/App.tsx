@@ -9,7 +9,7 @@ import {
 import { BASE_VAR, parseChain } from "./chain";
 import { evaluateChain } from "./evaluate";
 import { CATEGORIES, REGISTRY } from "./registry";
-import { buildDynamicOps, collectMethodNames } from "./wasmApi";
+import { buildDynamicOps, collectMethodNames, jsNameResolver } from "./wasmApi";
 import { formatComplex, formatFloat, safe } from "./util";
 import Katex from "./components/Katex";
 import Tree from "./components/Tree";
@@ -65,7 +65,7 @@ const SHOWCASE: { label: string; expr: string; chain: string }[] = [
     chain: `${BASE_VAR}.integrate("x")`,
   },
   {
-    label: "∫ 1/x dx  →  ln|x|  (Rust only)",
+    label: "∫ 1/x dx  →  log x  (Rust only)",
     expr: "1/x",
     chain: `${BASE_VAR}.integrate("x")`,
   },
@@ -298,6 +298,8 @@ export default function App() {
   const [baseSyntax, setBaseSyntax] = useState<Syntax>("text");
   const [notation, setNotation] = useState<Notation>("period");
   const [chain, setChain] = useState(EXAMPLES[0].chain);
+  // The auto-generated "Other" palette section is long; collapse it to ~3 rows.
+  const [otherExpanded, setOtherExpanded] = useState(false);
   const editorRef = useRef<ChainEditorHandle>(null);
 
   useEffect(() => {
@@ -324,7 +326,7 @@ export default function App() {
   // loads. Names are read off the live prototypes of each engine's `Expression`:
   // the wasm `.d.ts` supplies the *types*, but a method is only surfaced when it
   // also exists on the live Rust prototype (guarding against a stale `.d.ts`);
-  // the JS predicate lets shared methods light up on both engines.
+  // the JS name resolver lets shared methods light up on both engines.
   const allOps = useMemo<OpEntry[]>(() => {
     if (!loaded || !engines) return REGISTRY;
     // Introspect a throwaway handle, freeing the wasm one afterwards.
@@ -346,7 +348,9 @@ export default function App() {
     const rustHas = rustNames.size
       ? (m: string) => rustNames.has(m)
       : () => true;
-    const dynamic = buildDynamicOps(loaded.wasmDts, rustHas, (m) => jsNames.has(m));
+    // Resolve each wasm method to its JS twin (exact, or case/separator-folded)
+    // so shared ops surface under the JS-provided name on both engines.
+    const dynamic = buildDynamicOps(loaded.wasmDts, rustHas, jsNameResolver(jsNames));
     return [...REGISTRY, ...dynamic];
   }, [loaded, engines]);
 
@@ -563,31 +567,54 @@ export default function App() {
             autocomplete · <b>Other</b> is generated from the live wasm API
           </span>
         </div>
-        {CATEGORIES.filter((cat) => byCategory.get(cat)?.length).map((cat) => (
-          <div key={cat} className="palette-row">
-            <span className="palette-cat">{cat}</span>
-            <div className="palette-ops">
-              {byCategory.get(cat)!.map((e) => {
-                const only =
-                  e.js && e.rust ? "" : e.js ? " js-only" : " rust-only";
-                return (
+        {CATEGORIES.filter((cat) => byCategory.get(cat)?.length).map((cat) => {
+          const ops = byCategory.get(cat)!;
+          const renderOp = (e: OpEntry) => {
+            const only = e.js && e.rust ? "" : e.js ? " js-only" : " rust-only";
+            return (
+              <button
+                key={e.id}
+                className={"op-btn" + only}
+                title={
+                  (e.js ? "" : "JS: " + (e.unsupportedReason?.js ?? "unsupported")) +
+                  (e.rust ? "" : "Rust: " + (e.unsupportedReason?.rust ?? "unsupported"))
+                }
+                onClick={() => editorRef.current?.insertAtEnd(`.${e.insertText}`)}
+              >
+                {e.display}
+                {only && <span className="only-tag">{only.trim().replace("-only", "")}</span>}
+              </button>
+            );
+          };
+          // "Other" is auto-generated and long — collapse it to ~3 rows with a
+          // toggle. Every other category shows all its (curated) ops.
+          if (cat === "Other") {
+            return (
+              <div key={cat} className="palette-row">
+                <span className="palette-cat">{cat}</span>
+                <div className="palette-other">
+                  <div className={"palette-ops" + (otherExpanded ? "" : " collapsed")}>
+                    {ops.map(renderOp)}
+                  </div>
                   <button
-                    key={e.id}
-                    className={"op-btn" + only}
-                    title={
-                      (e.js ? "" : "JS: " + (e.unsupportedReason?.js ?? "unsupported")) +
-                      (e.rust ? "" : "Rust: " + (e.unsupportedReason?.rust ?? "unsupported"))
-                    }
-                    onClick={() => editorRef.current?.insertAtEnd(`.${e.insertText}`)}
+                    type="button"
+                    className="palette-more"
+                    aria-expanded={otherExpanded}
+                    onClick={() => setOtherExpanded((v) => !v)}
                   >
-                    {e.display}
-                    {only && <span className="only-tag">{only.trim().replace("-only", "")}</span>}
+                    {otherExpanded ? "▲ Show fewer" : `▼ Show all ${ops.length} functions`}
                   </button>
-                );
-              })}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div key={cat} className="palette-row">
+              <span className="palette-cat">{cat}</span>
+              <div className="palette-ops">{ops.map(renderOp)}</div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
       </div>
 

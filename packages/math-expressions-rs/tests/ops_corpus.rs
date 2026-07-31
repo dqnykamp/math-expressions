@@ -3,8 +3,10 @@
 //! must match JS's result via `equals`. Regenerate:
 //!   node scripts/generate-ops-corpus.mjs
 
+mod common;
+
 use math_expressions::{
-    equals, js_tree, substitute, variables, EqOptions, Expr, TextToAst, TextToAstOptions,
+    equals, expr, substitute, variables, EqOptions, Expr, TextToAst, TextToAstOptions,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -14,7 +16,7 @@ fn parse(s: &str) -> Option<Expr> {
 }
 
 fn catch<T>(f: impl FnOnce() -> T) -> Option<T> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).ok()
+    common::caught(f)
 }
 
 #[derive(serde::Deserialize)]
@@ -35,7 +37,6 @@ const CORPUS: &str = include_str!("fixtures/ops-corpus.json");
 
 #[test]
 fn variables_match_js_exactly() {
-    std::panic::set_hook(Box::new(|_| {}));
     let cases: Vec<Case> = serde_json::from_str(CORPUS).unwrap();
     let mut diffs = Vec::new();
     for c in &cases {
@@ -55,7 +56,6 @@ fn variables_match_js_exactly() {
 
 #[test]
 fn substitute_matches_js() {
-    std::panic::set_hook(Box::new(|_| {}));
     let cases: Vec<Case> = serde_json::from_str(CORPUS).unwrap();
     let opts = EqOptions::default();
     let mut diffs = Vec::new();
@@ -65,7 +65,7 @@ fn substitute_matches_js() {
         };
         let Some(repl) = parse(&sub.repl) else { continue };
         let map = HashMap::from([(sub.var.clone(), repl)]);
-        let want = js_tree::try_from_js(&sub.tree).expect("fixture tree");
+        let want = expr::serde::try_from_js(&sub.tree).expect("fixture tree");
         let ok = catch(|| equals(&substitute(&e, &map), &want, &opts)).unwrap_or(false);
         if !ok {
             diffs.push(format!("  {:?} [{}->{}]", c.input, sub.var, sub.repl));
